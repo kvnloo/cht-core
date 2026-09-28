@@ -663,25 +663,22 @@ describe('local doc lib', () => {
         { _id: '4' },
         { _id: '5' },
         { _id: '6' },
-        { _id: '7' },
-        { _id: '8' },
-        { _id: '9' },
       ];
       getFunction.callsFake((pageLimit: number, skip: number) =>
         Promise.resolve(docs.slice(skip, skip + pageLimit))
       );
-      filterFunction.callsFake((doc: Doc.Doc) => ![ '2', '3', '7' ].includes(doc._id));
+      filterFunction.callsFake((doc: Doc.Doc) => ![ '1', '2', '6' ].includes(doc._id));
 
-      const fetchAndFilterFunc = fetchAndFilter(getFunction, filterFunction, 3);
-      const firstPage = await fetchAndFilterFunc(3, 0);
-      const secondPage = await fetchAndFilterFunc(3, Number(firstPage.cursor));
+      const fetchAndFilterFunc = fetchAndFilter(getFunction, filterFunction, 2);
+      const firstPage = await fetchAndFilterFunc(2, 0);
+      const secondPage = await fetchAndFilterFunc(2, Number(firstPage.cursor));
 
       expect(firstPage).to.deep.equal({
-        data: [{ _id: '1' }, { _id: '4' }, { _id: '5' }],
-        cursor: '5',
+        data: [{ _id: '3' }, { _id: '4' }],
+        cursor: '4',
       });
       expect(secondPage).to.deep.equal({
-        data: [{ _id: '6' }, { _id: '8' }, { _id: '9' }],
+        data: [{ _id: '5' }],
         cursor: null,
       });
     });
