@@ -654,6 +654,62 @@ describe('local doc lib', () => {
       expect(getFunction.secondCall.calledWith(6, 3)).to.be.true;
       expect(filterFunction.callCount).to.equal(6);
     });
+
+    it('should not skip accepted docs after filling a page from an over-fetched batch', async () => {
+      const docs = [
+        { _id: '1' },
+        { _id: '2' },
+        { _id: '3' },
+        { _id: '4' },
+        { _id: '5' },
+        { _id: '6' },
+      ];
+      getFunction.callsFake((pageLimit: number, skip: number) =>
+        Promise.resolve(docs.slice(skip, skip + pageLimit))
+      );
+      filterFunction.callsFake((doc: Doc.Doc) => ![ '1', '2', '6' ].includes(doc._id));
+
+      const fetchAndFilterFunc = fetchAndFilter(getFunction, filterFunction, 2);
+      const firstPage = await fetchAndFilterFunc(2, 0);
+      const secondPage = await fetchAndFilterFunc(2, Number(firstPage.cursor));
+
+      expect(firstPage).to.deep.equal({
+        data: [{ _id: '3' }, { _id: '4' }],
+        cursor: '4',
+      });
+      expect(secondPage).to.deep.equal({
+        data: [{ _id: '5' }],
+        cursor: null,
+      });
+    });
+
+    it('should keep a cursor when a short fetch still contains unconsumed rows', async () => {
+      const docs = [
+        { _id: '1' },
+        { _id: '2' },
+        { _id: '3' },
+        { _id: '4' },
+        { _id: '5' },
+        { _id: '6' },
+      ];
+      getFunction.callsFake((pageLimit: number, skip: number) =>
+        Promise.resolve(docs.slice(skip, skip + pageLimit))
+      );
+      filterFunction.callsFake((doc: Doc.Doc) => ![ '2', '3' ].includes(doc._id));
+
+      const fetchAndFilterFunc = fetchAndFilter(getFunction, filterFunction, 3);
+      const firstPage = await fetchAndFilterFunc(3, 0);
+      const secondPage = await fetchAndFilterFunc(3, Number(firstPage.cursor));
+
+      expect(firstPage).to.deep.equal({
+        data: [{ _id: '1' }, { _id: '4' }, { _id: '5' }],
+        cursor: '5',
+      });
+      expect(secondPage).to.deep.equal({
+        data: [{ _id: '6' }],
+        cursor: null,
+      });
+    });
   });
 
   describe('fetchAndFilterIds', () => {
