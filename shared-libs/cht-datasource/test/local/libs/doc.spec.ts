@@ -608,7 +608,7 @@ describe('local doc lib', () => {
       expect(result.cursor).to.equal('4');
       expect(getFunction.firstCall.calledWith(3, 0)).to.be.true;
       expect(getFunction.secondCall.calledWith(2, 3)).to.be.true;
-      expect(filterFunction.callCount).to.equal(5);
+      expect(filterFunction.callCount).to.equal(4);
     });
 
     it('should return null cursor when no more results', async () => {
@@ -653,6 +653,65 @@ describe('local doc lib', () => {
       expect(getFunction.firstCall.calledWith(3, 0)).to.be.true;
       expect(getFunction.secondCall.calledWith(6, 3)).to.be.true;
       expect(filterFunction.callCount).to.equal(6);
+    });
+
+    it('does not skip accepted docs after over-fetching filtered rows', async () => {
+      const docs = [
+        { _id: '1' },
+        { _id: '2' },
+        { _id: '3' },
+        { _id: '4' },
+        { _id: '5' },
+        { _id: '6' },
+        { _id: '7' },
+        { _id: '8' },
+        { _id: '9' },
+      ];
+      getFunction.callsFake((pageLimit: number, skip: number) =>
+        Promise.resolve(docs.slice(skip, skip + pageLimit))
+      );
+      filterFunction.callsFake((doc: Doc.Doc) => ![ '2', '3', '7' ].includes(doc._id));
+
+      const fetchAndFilterFunc = fetchAndFilter(getFunction, filterFunction, 3);
+      const firstPage = await fetchAndFilterFunc(3, 0);
+      const secondPage = await fetchAndFilterFunc(3, Number(firstPage.cursor));
+
+      expect(firstPage).to.deep.equal({
+        data: [{ _id: '1' }, { _id: '4' }, { _id: '5' }],
+        cursor: '5',
+      });
+      expect(secondPage).to.deep.equal({
+        data: [{ _id: '6' }, { _id: '8' }, { _id: '9' }],
+        cursor: null,
+      });
+    });
+
+    it('returns a cursor when a short fetch has unconsumed accepted docs', async () => {
+      const docs = [
+        { _id: '1' },
+        { _id: '2' },
+        { _id: '3' },
+        { _id: '4' },
+        { _id: '5' },
+        { _id: '6' },
+      ];
+      getFunction.callsFake((pageLimit: number, skip: number) =>
+        Promise.resolve(docs.slice(skip, skip + pageLimit))
+      );
+      filterFunction.callsFake((doc: Doc.Doc) => ![ '2', '3' ].includes(doc._id));
+
+      const fetchAndFilterFunc = fetchAndFilter(getFunction, filterFunction, 3);
+      const firstPage = await fetchAndFilterFunc(3, 0);
+      const secondPage = await fetchAndFilterFunc(3, Number(firstPage.cursor));
+
+      expect(firstPage).to.deep.equal({
+        data: [{ _id: '1' }, { _id: '4' }, { _id: '5' }],
+        cursor: '5',
+      });
+      expect(secondPage).to.deep.equal({
+        data: [{ _id: '6' }],
+        cursor: null,
+      });
     });
   });
 
